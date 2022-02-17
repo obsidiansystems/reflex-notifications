@@ -15,7 +15,6 @@ extra-source-files: CHANGELOG.md
 library
   hs-source-dirs: src
   build-depends: base
-               , common
                , data-default
                , jsaddle
                , lens
@@ -28,6 +27,5 @@ library
   exposed-modules:
     Reflex.Notifications
     Reflex.Notifications.Types
-  other-modules:
     Reflex.Notifications.Util
   ghc-options: -Wall -Wredundant-constraints -Wincomplete-uni-patterns -Wincomplete-record-updates -O -fno-show-valid-hole-fits

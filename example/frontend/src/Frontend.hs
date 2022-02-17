@@ -16,7 +16,9 @@ import Obelisk.Route.Frontend
 import Obelisk.Generated.Static
 
 import Reflex.Dom.Core
--- import Reflex.Notifications
+import Reflex.Notifications
+import Reflex.Notifications.Types
+import Reflex.Notifications.Util
 
 import Common.Api
 import Common.Route
@@ -30,15 +32,13 @@ frontend = Frontend
   { _frontend_head = do
       el "title" $ text "Obelisk Minimal Example"
       elAttr "link" ("href" =: $(static "main.css") <> "type" =: "text/css" <> "rel" =: "stylesheet") blank
-  , _frontend_body = prerender_ blank notif
+  , _frontend_body = prerender_ blank frontendBody
   }
 
-notif :: (PostBuild t m, DomBuilder t m, MonadHold t m, MonadJSM m, MonadJSM (Performable m), PerformEvent t m, TriggerEvent t m) => RoutedT t (R FrontendRoute) m ()
-notif = do
-  pure ()
-  {-
-  (e1, _) <- el' "button" $ text "Click Me"
-  (e2, _) <- el' "button" $ text "Click Me 2"
+frontendBody :: (PostBuild t m, DomBuilder t m, MonadHold t m, MonadJSM m, MonadJSM (Performable m), PerformEvent t m, TriggerEvent t m) => RoutedT t (R FrontendRoute) m ()
+frontendBody = do
+  (e1, _) <- el' "button" $ text "Ask Permission"
+  (e2, _) <- el' "button" $ text "Send Notification"
   let
     askPermissionEv = domEvent Click e1
     sendNotificationEv = domEvent Click e2
@@ -46,8 +46,10 @@ notif = do
     options :: NotificationOptions Int
     options = defaultNotificationOptions
       { body = "Heya body"
+      , icon = $(static "obelisk.jpg")
+      , image = $(static "obelisk.jpg")
       }
-  
+
   txtEv <- withUserPermission askPermissionEv
     (do
       withNotification ("Heya title" <$ sendNotificationEv) options $ \notification -> do
@@ -59,12 +61,9 @@ notif = do
           consoleLog ("Heya error" <> txt)
         pure "Everything works"
       )
-    (\err ->
-      pure $ show err
-      )
+    (pure . show)
 
   txtDyn <- holdDyn "" $ fmap T.pack txtEv
   el "div" $ dynText txtDyn
 
   pure ()
-  -}
