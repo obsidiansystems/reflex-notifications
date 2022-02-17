@@ -1,4 +1,4 @@
-# reflex-webauthn
+# reflex-notifications
 
 ## Setup
 This repo contains one packages: `reflex-notifications`.
