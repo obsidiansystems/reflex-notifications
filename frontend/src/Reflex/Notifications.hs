@@ -154,13 +154,18 @@ data Notification t = Notification
 
 -- | Takes a notification, and event handlers for interacting with a notification.
 withNotificationEvent
-  :: (Monad m, Adjustable t m)
+  :: (Monad m, Adjustable t m, MonadJSM m)
   => Notification t             -- ^ A notification, generated via `withNotification`.
   -> NotificationAction m a     -- ^ The type of interaction desired with the notification.
   -> m (Event t a)
 withNotificationEvent notification = \case
   NotificationClick action -> do
-    fmap snd $ runWithReplace blank $ action <$ onclick notification
+    window <- liftJSM $ jsg $ s "window"
+    let
+      focussedAction = do
+        void $ liftJSM $ window ^. js0 (s "focus")
+        action
+    fmap snd $ runWithReplace blank $ focussedAction <$ onclick notification
   NotificationClose action ->
     fmap snd $ runWithReplace blank $ action <$ onclose notification
   NotificationShow action ->

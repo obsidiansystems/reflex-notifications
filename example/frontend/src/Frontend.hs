@@ -5,6 +5,8 @@
 module Frontend where
 
 import Control.Monad
+import Control.Monad.IO.Class
+import Data.Functor
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Language.Javascript.JSaddle
@@ -39,16 +41,22 @@ frontendBody :: (PostBuild t m, DomBuilder t m, MonadHold t m, MonadJSM m, Monad
 frontendBody = do
   (e1, _) <- el' "button" $ text "Ask Permission"
   (e2, _) <- el' "button" $ text "Send Notification"
+  (e3, _) <- el' "button" $ text "Send Notification After 5 seconds"
   let
-    askPermissionEv = domEvent Click e1
-    sendNotificationEv = domEvent Click e2
-
     options :: NotificationOptions Int
     options = defaultNotificationOptions
       { body = "Heya body"
       , icon = $(static "obelisk.jpg")
       , image = $(static "obelisk.jpg")
       }
+    askPermissionEv = domEvent Click e1
+    sendNotificationEv = domEvent Click e2
+  sendNotificationAfterEv <- performEventAsync $ domEvent Click e3 <&> \() sendFn -> liftJSM $ do
+    void $ jsgf (s "setTimeout")
+      ( fun $ \_ _ _ -> do
+          liftIO $ sendFn ()
+      , 5000 :: Int
+      )
 
   txtEv <- withUserPermission askPermissionEv
     (do
@@ -59,6 +67,10 @@ frontendBody = do
         withNotificationEvent notification $ NotificationError $ \err -> do
           txt <- liftJSM $ valToText err
           consoleLog ("Heya error" <> txt)
+        pure "Everything works"
+      withNotification ("Heya delayed title" <$ sendNotificationAfterEv) options $ \notification -> do
+        withNotificationEvent notification $ NotificationClick $ do
+          consoleLog (s "Heya click")
         pure "Everything works"
       )
     (pure . show)
