@@ -26,7 +26,7 @@ Your skeleton project's `default.nix` uses the [reflex-platform project infrastr
 ```nix
 project ./. ({ hackGet, ... }: {
   packages = {
-    reflex-notifications = (hackGet ./dep/reflex-notifications) + "/frontend";
+    reflex-notifications = hackGet ./dep/reflex-notifications;
     ... # other configuration goes here
   };
 })

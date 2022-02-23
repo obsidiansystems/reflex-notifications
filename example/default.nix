@@ -17,7 +17,7 @@
 with obelisk;
 project ./. ({ ... }: {
   packages = {
-    reflex-notifications = ../frontend;
+    reflex-notifications = ../.;
   };
   android.applicationId = "systems.obsidian.obelisk.examples.minimal";
   android.displayName = "Obelisk Minimal Example";
