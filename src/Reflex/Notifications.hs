@@ -11,11 +11,11 @@ This module provides functions for dealing with Notifications API in an easy way
 {-# LANGUAGE OverloadedStrings #-}
 
 module Reflex.Notifications(
-
   withUserPermission,
   withNotification,
   Notification,
-  withNotificationEvent
+  withNotificationEvent,
+  module Reflex.Notifications.Types
 ) where
 
 import Control.Lens

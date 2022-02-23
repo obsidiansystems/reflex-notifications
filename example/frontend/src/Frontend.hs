@@ -19,7 +19,6 @@ import Obelisk.Generated.Static
 
 import Reflex.Dom.Core
 import Reflex.Notifications
-import Reflex.Notifications.Types
 import Reflex.Notifications.Util
 
 import Common.Api
