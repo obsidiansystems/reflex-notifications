@@ -49,32 +49,42 @@ library
 ```
 
 ## Frontend
-On the frontend, use `withUserPermission`, `withNotification` and `withNotificationEvent` like the [example](https://github.com/obsidiansystems/reflex-notifications/blob/main/example/frontend/src/Frontend.hs#L51).
+On the frontend, use `withUserPermission` and `sendNotification` like the [example](https://github.com/obsidiansystems/reflex-notifications/blob/main/example/frontend/src/Frontend.hs#L40).
 ```haskell
 do
   (e1, _) <- el' "button" $ text "Ask Permission"
   (e2, _) <- el' "button" $ text "Send Notification"
+  (e3, _) <- el' "button" $ text "Send Notification After 5 seconds"
   let
-    askPermissionEv = domEvent Click e1
-    sendNotificationEv = domEvent Click e2
-
-    options :: NotificationOptions Int
-    options = defaultNotificationOptions
+    notificationOptions :: NotificationOptions Int
+    notificationOptions = defaultNotificationOptions
       { body = "Heya body"
       , icon = $(static "obelisk.jpg")
       , image = $(static "obelisk.jpg")
       }
 
+    notification = Notification
+      { onclick = Just $ fun $ \_ _ _ -> consoleLog $ s "Heya click"
+      , onclose = Just $ fun $ \_ _ _ -> consoleLog $ s "Heya close"
+      , onerror = Just $ fun $ \_ _ _ -> consoleLog $ s "Heya error"
+      , onshow = Just $ fun $ \_ _ _ -> consoleLog $ s "Heya show"
+      , options = notificationOptions
+      , contents = "Heya title"
+      }
+    askPermissionEv = domEvent Click e1
+    sendNotificationEv = domEvent Click e2
+  sendNotificationAfterEv <- performEventAsync $ domEvent Click e3 <&> \() sendFn -> liftJSM $ do
+    void $ jsgf (s "setTimeout")
+      ( fun $ \_ _ _ -> do
+          liftIO $ sendFn ()
+      , 5000 :: Int
+      )
+
   txtEv <- withUserPermission askPermissionEv
     (do
-      withNotification ("Heya title" <$ sendNotificationEv) options $ \notification -> do
-        withNotificationEvent notification $ NotificationClick $ consoleLog (s "Heya click")
-        withNotificationEvent notification $ NotificationClose $ consoleLog (s "Heya close")
-        withNotificationEvent notification $ NotificationShow $ consoleLog (s "Heya show")
-        withNotificationEvent notification $ NotificationError $ \err -> do
-          txt <- liftJSM $ valToText err
-          consoleLog ("Heya error" <> txt)
-        pure "Everything works"
+      sendNotification $ notification <$ sendNotificationEv
+      sendNotification $ notification <$ sendNotificationAfterEv
+      pure "Everything works"
       )
     (pure . show)
 

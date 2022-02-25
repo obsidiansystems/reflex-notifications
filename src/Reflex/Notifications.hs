@@ -12,16 +12,13 @@ This module provides functions for dealing with Notifications API in an easy way
 
 module Reflex.Notifications(
   withUserPermission,
-  withNotification,
-  Notification,
-  withNotificationEvent,
+  sendNotification,
   module Reflex.Notifications.Types
 ) where
 
 import Control.Lens
 import Control.Monad
 import Control.Monad.IO.Class
-import qualified Data.Text as T
 import Language.Javascript.JSaddle
 
 import Reflex.Dom.Core hiding (tag)
@@ -75,51 +72,34 @@ askNotificationPermission clickEv = do
       "denied"  -> Left Error_UserRejectedPermission
       _         -> Left Error_DefaultPermissionUnchanged
 
-valToNotification
-  :: (MonadJSM m)
-  => Object
-  -> (Event t (), () -> IO ())
-  -> (Event t (), () -> IO ())
-  -> (Event t T.Text, T.Text -> IO ())
-  -> (Event t (), () -> IO ())
-  -> m (Notification t)
-valToNotification object (onclickEv, clickFn) (oncloseEv, closeFn) (onerrorEv, errorFn) (onshowEv, showFn) = do
-  liftJSM $ do
-    objSetPropertyByName object (s "onclick") (fun $ \_ _ _ ->
-      liftIO $ clickFn ())
-    objSetPropertyByName object (s "onclose") (fun $ \_ _ _ ->
-      liftIO $ closeFn ())
-    objSetPropertyByName object (s "onerror") (fun $ \_ _ [err] -> do
-      errText <- valToText err
-      liftIO $ errorFn errText)
-    objSetPropertyByName object (s "onshow") (fun $ \_ _ _ ->
-      liftIO $ showFn ())
-  pure $ Notification onclickEv oncloseEv onerrorEv onshowEv
-
+-- | Takes an event of notifications. Whenever it receives a `Notification`, it sends
+-- a notification to the browser.
 sendNotification
-  :: (TriggerEvent t m, PerformEvent t m, MonadJSM (Performable m), ToJSVal a)
-  => Event t T.Text
-  -> NotificationOptions a
-  -> m (Event t (Notification t))
-sendNotification msgEv options = do
-  (onclickEv, clickFn) <- newTriggerEvent
-  (oncloseEv, closeFn) <- newTriggerEvent
-  (onerrorEv, errorFn) <- newTriggerEvent
-  (onshowEv, showFn) <- newTriggerEvent
-  performEvent $ msgEv <&> \msg -> do
-    object <- liftJSM $ new (jsg (s "Notification")) [toJSVal msg, toJSVal options] >>= makeObject
-    valToNotification object (onclickEv, clickFn) (oncloseEv, closeFn) (onerrorEv, errorFn) (onshowEv, showFn)
+  :: (PerformEvent t m, MonadJSM (Performable m), ToJSVal a)
+  => Event t (Notification a)
+  -> m ()
+sendNotification notificationEv = do
+  performEvent_ $ notificationEv <&> \notification -> liftJSM $ do
+    object <- new (jsg (s "Notification")) [toJSVal $ contents notification, toJSVal $ options notification] >>= makeObject
+    forM_ (onclick notification) $ \handler ->
+      objSetPropertyByName object (s "onclick") handler
+    forM_ (onclose notification) $ \handler ->
+      objSetPropertyByName object (s "onclose") handler
+    forM_ (onerror notification) $ \handler ->
+      objSetPropertyByName object (s "onerror") handler
+    forM_ (onshow notification) $ \handler ->
+      objSetPropertyByName object (s "onshow") handler
 
 -- | Checks if the browser supports Notification API, and then asks user permission to show notifications
 -- if the browser supports them.
 --
--- If the user approves the permission, a monadic action is run, that results in an event. This plays well with `withNotification`.
+-- If the user approves the permission, a monadic action is run. This plays well with `sendNotification`.
 --
 -- If the user rejects the permission, an error handler is run, that takes an `Reflex.Notifications.Types.Error` and returns a value.
 withUserPermission
-  :: (TriggerEvent t m, PerformEvent t m, MonadJSM (Performable m), Adjustable t m, MonadHold t m)
+  :: (TriggerEvent t m, PerformEvent t m, MonadJSM (Performable m), Adjustable t m)
   => Event t a        -- ^ The user inititated event used for asking permission from the user
-  -> m (Event t b)    -- ^ The monadic action that will be run if the user grants permission
+  -> m b              -- ^ The monadic action that will be run if the user grants permission
   -> (Error -> m b)   -- ^ Error handler
   -> m (Event t b)
 withUserPermission userEv action handler = do
@@ -127,48 +107,5 @@ withUserPermission userEv action handler = do
   let
     handledMonadEv = handler <$> errorEv
   ((), handledErrorEv) <- runWithReplace blank handledMonadEv
-  ((), actionEventEv) <- runWithReplace blank $ permissionEv <&> \() -> action
-  actionEv <- switchHold never actionEventEv
+  ((), actionEv) <- runWithReplace blank $ action <$ permissionEv
   pure $ leftmost [handledErrorEv, actionEv]
-
--- | Takes an event containing the text to be shown inside a notification, along with notification options.
---
--- Generates a notification every time the supplied event fires, and then calls a handler on it. This plays well with `withNotificationEvent`.
-withNotification
-  :: (TriggerEvent t m, PerformEvent t m, MonadJSM (Performable m), Adjustable t m, ToJSVal o)
-  => Event t T.Text           -- ^ Event containing the notification text
-  -> NotificationOptions o    -- ^ Notification Options
-  -> (Notification t -> m a)  -- ^ Function that handles notifications
-  -> m (Event t a)
-withNotification textEv options f = do
-  notificationEv <- sendNotification textEv options
-  fmap snd $ runWithReplace blank $ f <$> notificationEv
-
--- | A type to represent Notifications
-data Notification t = Notification
-  { onclick :: Event t ()
-  , onclose :: Event t ()
-  , onerror :: Event t T.Text
-  , onshow :: Event t ()
-  }
-
--- | Takes a notification, and event handlers for interacting with a notification.
-withNotificationEvent
-  :: (Monad m, Adjustable t m, MonadJSM m)
-  => Notification t             -- ^ A notification, generated via `withNotification`.
-  -> NotificationAction m a     -- ^ The type of interaction desired with the notification.
-  -> m (Event t a)
-withNotificationEvent notification = \case
-  NotificationClick action -> do
-    window <- liftJSM $ jsg $ s "window"
-    let
-      focussedAction = do
-        void $ liftJSM $ window ^. js0 (s "focus")
-        action
-    fmap snd $ runWithReplace blank $ focussedAction <$ onclick notification
-  NotificationClose action ->
-    fmap snd $ runWithReplace blank $ action <$ onclose notification
-  NotificationShow action ->
-    fmap snd $ runWithReplace blank $ action <$ onshow notification
-  NotificationError action ->
-    fmap snd $ runWithReplace blank $ action <$> onerror notification

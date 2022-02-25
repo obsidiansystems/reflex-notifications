@@ -36,17 +36,26 @@ frontend = Frontend
   , _frontend_body = prerender_ blank frontendBody
   }
 
-frontendBody :: (PostBuild t m, DomBuilder t m, MonadHold t m, MonadJSM m, MonadJSM (Performable m), PerformEvent t m, TriggerEvent t m) => RoutedT t (R FrontendRoute) m ()
+frontendBody :: (PostBuild t m, DomBuilder t m, MonadHold t m, MonadJSM (Performable m), PerformEvent t m, TriggerEvent t m) => RoutedT t (R FrontendRoute) m ()
 frontendBody = do
   (e1, _) <- el' "button" $ text "Ask Permission"
   (e2, _) <- el' "button" $ text "Send Notification"
   (e3, _) <- el' "button" $ text "Send Notification After 5 seconds"
   let
-    options :: NotificationOptions Int
-    options = defaultNotificationOptions
+    notificationOptions :: NotificationOptions Int
+    notificationOptions = defaultNotificationOptions
       { body = "Heya body"
       , icon = $(static "obelisk.jpg")
       , image = $(static "obelisk.jpg")
+      }
+
+    notification = Notification
+      { onclick = Just $ fun $ \_ _ _ -> consoleLog $ s "Heya click"
+      , onclose = Just $ fun $ \_ _ _ -> consoleLog $ s "Heya close"
+      , onerror = Just $ fun $ \_ _ _ -> consoleLog $ s "Heya error"
+      , onshow = Just $ fun $ \_ _ _ -> consoleLog $ s "Heya show"
+      , options = notificationOptions
+      , contents = "Heya title"
       }
     askPermissionEv = domEvent Click e1
     sendNotificationEv = domEvent Click e2
@@ -59,18 +68,9 @@ frontendBody = do
 
   txtEv <- withUserPermission askPermissionEv
     (do
-      withNotification ("Heya title" <$ sendNotificationEv) options $ \notification -> do
-        withNotificationEvent notification $ NotificationClick $ consoleLog (s "Heya click")
-        withNotificationEvent notification $ NotificationClose $ consoleLog (s "Heya close")
-        withNotificationEvent notification $ NotificationShow $ consoleLog (s "Heya show")
-        withNotificationEvent notification $ NotificationError $ \err -> do
-          txt <- liftJSM $ valToText err
-          consoleLog ("Heya error" <> txt)
-        pure "Everything works"
-      withNotification ("Heya delayed title" <$ sendNotificationAfterEv) options $ \notification -> do
-        withNotificationEvent notification $ NotificationClick $ do
-          consoleLog (s "Heya click")
-        pure "Everything works"
+      sendNotification $ notification <$ sendNotificationEv
+      sendNotification $ notification <$ sendNotificationAfterEv
+      pure "Everything works"
       )
     (pure . show)
 

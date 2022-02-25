@@ -55,12 +55,15 @@ data NotificationOptions a = NotificationOptions
   , silent :: Bool
   }
 
--- | Defines the interactions that can be performed with a Notification
-data NotificationAction m a
-  = NotificationClick (m a)             -- ^ Type for handling clicks
-  | NotificationClose (m a)             -- ^ Type for handling close events. Can be user or system triggered.
-  | NotificationShow (m a)              -- ^ Type for handling show events.
-  | NotificationError (T.Text -> m a)   -- ^ Type for handling error events.
+-- | A type to represent Notifications
+data Notification a = Notification
+  { onclick :: Maybe JSCallAsFunction   -- ^ Handler for click event.
+  , onclose :: Maybe JSCallAsFunction   -- ^ Handler for close event.
+  , onerror :: Maybe JSCallAsFunction   -- ^ Handler for error event.
+  , onshow :: Maybe JSCallAsFunction    -- ^ Handler for show event.
+  , options :: NotificationOptions a    -- ^ Options for the notification.
+  , contents :: T.Text                  -- ^ Text to be shown inside the notification.
+  }
 
 -- | Default options for notifications.
 defaultNotificationOptions :: (Default a) => NotificationOptions a
